@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "112848755825",
+    "project_id": "wordcreate-237c7",
+    "storage_bucket": "wordcreate-237c7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:112848755825:android:ec2f496b8c21d283ebcfd0",
+        "android_client_info": {
+          "package_name": "com.example.wordcreate"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8HwPYV7WQ9nbW9iMwAX95YxeDbIC-0Tk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
