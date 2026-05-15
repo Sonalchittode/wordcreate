@@ -20,23 +20,27 @@ class StoryGenerationService {
     }
 
     final model = GenerativeModel(model: 'gemini-1.5-flash', apiKey: apiKey);
-    final response = await model.generateContent([
-      Content.text(
-        buildPrompt(
-          words: words,
-          theme: theme,
-          size: size,
-          difficulty: difficulty,
+    try {
+      final response = await model.generateContent([
+        Content.text(
+          buildPrompt(
+            words: words,
+            theme: theme,
+            size: size,
+            difficulty: difficulty,
+          ),
         ),
-      ),
-    ]);
-    final text = response.text?.trim();
+      ]);
+      final text = response.text?.trim();
 
-    if (text == null || text.isEmpty) {
-      throw StoryGenerationException('The AI did not return a story.');
+      if (text == null || text.isEmpty) {
+        throw StoryGenerationException('The AI did not return a story.');
+      }
+
+      return GeneratedStory.fromJsonText(text, fallbackWords: words);
+    } catch (error) {
+      throw StoryGenerationException('Generation failed: $error');
     }
-
-    return GeneratedStory.fromJsonText(text, fallbackWords: words);
   }
 
   String buildPrompt({

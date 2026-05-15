@@ -49,14 +49,6 @@ class DifficultyButton extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              if (locked) ...[
-                const SizedBox(width: 5),
-                Icon(
-                  Icons.lock,
-                  size: 13,
-                  color: foreground.withValues(alpha: 0.75),
-                ),
-              ],
             ],
           ),
         ),

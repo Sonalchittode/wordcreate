@@ -104,8 +104,8 @@ class _StoryGeneratorPageState extends State<StoryGeneratorPage> {
           builder: (_) => StoryResultPage(result: result),
         ),
       );
-    } catch (_) {
-      setState(() => _error = 'Could not generate story. Please try again.');
+    } catch (error) {
+      setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {
         setState(() => _isGenerating = false);
@@ -208,53 +208,23 @@ class _StoryGeneratorPageState extends State<StoryGeneratorPage> {
                 Expanded(
                   child: DifficultyButton(
                     label: 'Intermediate',
-                    selected: false,
-                    locked: true,
-                    onTap: () {},
+                    selected: _difficulty == 'Intermediate',
+                    locked: false,
+                    onTap: () => setState(() => _difficulty = 'Intermediate'),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: DifficultyButton(
                     label: 'Advanced',
-                    selected: false,
-                    locked: true,
-                    onTap: () {},
+                    selected: _difficulty == 'Advanced',
+                    locked: false,
+                    onTap: () => setState(() => _difficulty = 'Advanced'),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 26),
-            Row(
-              children: const [
-                Text(
-                  'Word Repeat',
-                  style: TextStyle(fontSize: 16, color: Color(0xFF2A2F35)),
-                ),
-                SizedBox(width: 6),
-                Icon(Icons.lock, size: 16, color: Color(0xFF7890A2)),
-                SizedBox(width: 4),
-                Text(
-                  '(Premium)',
-                  style: TextStyle(fontSize: 13, color: Color(0xFF8B9BA7)),
-                ),
-              ],
-            ),
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                disabledActiveTrackColor: const Color(0xFFE2E2E2),
-                disabledInactiveTrackColor: const Color(0xFFE2E2E2),
-                disabledThumbColor: const Color(0xFF98A0AD),
-                trackHeight: 3,
-              ),
-              child: const Slider(
-                value: 0,
-                min: 0,
-                max: 3,
-                divisions: 3,
-                onChanged: null,
-              ),
-            ),
             const SizedBox(height: 32),
             SizedBox(
               height: 52,
@@ -293,22 +263,6 @@ class _StoryGeneratorPageState extends State<StoryGeneratorPage> {
             ),
           ],
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        selectedItemColor: Colors.black,
-        unselectedItemColor: const Color(0xFFA4A4A4),
-        showUnselectedLabels: true,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.auto_awesome),
-            label: 'Generate',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.library_books_outlined),
-            label: 'Store',
-          ),
-        ],
       ),
     );
   }
