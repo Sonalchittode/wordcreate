@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:wordcreate/main.dart';
+import 'package:wordcreate/app/story_app.dart';
+import 'package:wordcreate/models/generated_story.dart';
+import 'package:wordcreate/models/word_detail.dart';
+import 'package:wordcreate/screens/story_result_page.dart';
 
 void main() {
   test('Parses AI word_data response format', () {
@@ -35,7 +38,7 @@ void main() {
   testWidgets('Story generator screen renders core controls', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const StoryApp());
 
     expect(find.text('Story Generator'), findsOneWidget);
     expect(find.text('Enter Words'), findsOneWidget);
@@ -48,7 +51,7 @@ void main() {
   testWidgets('Shows validation when more than five words are entered', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const StoryApp());
 
     await tester.enterText(
       find.byType(EditableText),
