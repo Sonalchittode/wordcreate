@@ -144,39 +144,76 @@ class _StoryGeneratorPageState extends State<StoryGeneratorPage> {
   }
 
   String _buildPrompt(List<String> words) {
-    final sizeGuide = switch (_size) {
-      'Small' => '80 to 120 words',
-      'Medium' => '120 to 150 words',
-      'Large' => '150 to 180 words',
-      _ => '100 to 140 words',
-    };
-    final genreGuide = _theme == 'Auto'
-        ? 'choose a natural, engaging genre'
+    final activeDifficulty = _difficulty;
+    final activeTheme = _theme == 'Auto'
+        ? 'a realistic everyday moment'
         : _theme;
+    final activeSize = switch (_size) {
+      'Small' => 'Short',
+      'Large' => 'Long',
+      'Medium' => 'Medium',
+      _ => 'Short',
+    };
+
+    final difficultyInstruction = switch (activeDifficulty) {
+      'Beginner' => 'Use simple, short sentences and everyday common language.',
+      'Intermediate' =>
+        'Use descriptive adjectives, varied sentence structures, and common idioms.',
+      _ =>
+        'Use complex prose, advanced vocabulary, and sophisticated narrative metaphors.',
+    };
+
+    final sizeInstruction = switch (activeSize) {
+      'Short' =>
+        'Target 80-120 words. If the number of target words is high, you may expand slightly to ensure the story remains natural and realistic.',
+      'Medium' => 'Target 120-150 words.',
+      _ => 'Target 150-200 words.',
+    };
+
+    final wordDataTemplate = words
+        .map(
+          (word) =>
+              '''
+         "$word": {
+            "meaning": "Clear English definition",
+            "hindi": "Hindi meaning",
+            "synonyms": "comma, separated, synonyms",
+            "antonyms": "comma, separated, antonyms",
+            "forms": "List the forms used in the story (e.g., running, ran)",
+            "explanation": "A simple 1-sentence tip on how to use this word naturally"
+         }''',
+        )
+        .join(', ');
 
     return '''
-Create an English vocabulary learning story for a mobile app.
+Role: Expert Narrative Linguist.
+Task: Write a natural, realistic $activeSize story about '$activeTheme' at a $activeDifficulty level.
 
-Required vocabulary words: ${words.join(', ')}
-Story genre: $genreGuide
-Difficulty: $_difficulty English
-Length: $sizeGuide
+Length: $sizeInstruction
+Level Context: $difficultyInstruction
+Target Words: ${words.join(', ')}
 
-Return valid JSON only. Do not use markdown fences.
-Use this exact schema:
+CRITICAL INSTRUCTION FOR SHORT STORIES:
+If the target words make the story feel "forced" or like a list because the length is too short,
+automatically increase the length just enough to maintain a high-quality, realistic narrative flow.
+The goal is a natural story, not a vocabulary list.
+
+CORE RULES:
+1. NATURAL REPETITION: Repeat each target word multiple times throughout the story. The repetition must feel like a natural part of a real story, not a word list.
+2. WORD FORMS: Use different forms of the words (e.g., if the word is 'go', use 'go', 'went', 'gone') to show how they are used in real life.
+3. SHOW MEANING: The context of the story should clearly explain what the words mean without defining them explicitly.
+4. HIGHLIGHT: Bold every instance of the target words or their variations using **double asterisks**.
+5. QUALITY: The story must be interesting and professional.
+6. Don't forcefully use words in every sentence.
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON object. Do not include markdown code blocks.
 {
-  "wordDetails": [
-    {
-      "word": "word",
-      "hindiMeaning": "Hindi translation",
-      "synonyms": ["one", "two", "three"],
-      "antonyms": ["one", "two", "three"],
-      "wordForms": ["form1", "form2"],
-      "explanation": "short learner-friendly explanation"
-    }
-  ],
-  "story": "story text that naturally uses every required word",
-  "summary": "one short sentence summary"
+  "story": "The full narrative text with **bolded** words...",
+  "summary": "A concise one-sentence plot summary.",
+  "word_data": {
+     $wordDataTemplate
+  }
 }
 ''';
   }
@@ -509,10 +546,7 @@ class GeneratedStory {
         .replaceAll(RegExp(r'\s*```$'), '')
         .trim();
     final decoded = jsonDecode(cleanText) as Map<String, dynamic>;
-    final details = (decoded['wordDetails'] as List<dynamic>? ?? [])
-        .whereType<Map<String, dynamic>>()
-        .map(WordDetail.fromJson)
-        .toList();
+    final details = _readWordDetails(decoded, fallbackWords);
 
     return GeneratedStory(
       wordDetails: details.isEmpty
@@ -521,6 +555,32 @@ class GeneratedStory {
       story: decoded['story'] as String? ?? '',
       summary: decoded['summary'] as String? ?? '',
     );
+  }
+
+  static List<WordDetail> _readWordDetails(
+    Map<String, dynamic> decoded,
+    List<String> fallbackWords,
+  ) {
+    final wordDetails = decoded['wordDetails'];
+    if (wordDetails is List<dynamic>) {
+      return wordDetails
+          .whereType<Map<String, dynamic>>()
+          .map(WordDetail.fromJson)
+          .toList();
+    }
+
+    final wordData = decoded['word_data'];
+    if (wordData is Map<String, dynamic>) {
+      return fallbackWords.map((word) {
+        final data = wordData[word];
+        if (data is Map<String, dynamic>) {
+          return WordDetail.fromWordData(word, data);
+        }
+        return WordDetail.basic(word);
+      }).toList();
+    }
+
+    return const [];
   }
 }
 
@@ -552,6 +612,17 @@ class WordDetail {
     );
   }
 
+  factory WordDetail.fromWordData(String word, Map<String, dynamic> json) {
+    return WordDetail(
+      word: word,
+      hindiMeaning: json['hindi'] as String? ?? '',
+      synonyms: _stringList(json['synonyms']),
+      antonyms: _stringList(json['antonyms']),
+      wordForms: _stringList(json['forms']),
+      explanation: json['explanation'] as String? ?? '',
+    );
+  }
+
   factory WordDetail.basic(String word) {
     return WordDetail(
       word: word,
@@ -564,6 +635,14 @@ class WordDetail {
   }
 
   static List<String> _stringList(Object? value) {
+    if (value is String) {
+      return value
+          .split(',')
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
     return (value as List<dynamic>? ?? [])
         .map((item) => item.toString())
         .where((item) => item.trim().isNotEmpty)
@@ -690,6 +769,10 @@ class _StoryCard extends StatelessWidget {
   }
 
   List<TextSpan> _storySpans(String story, Iterable<String> words) {
+    if (story.contains('**')) {
+      return _markdownBoldSpans(story);
+    }
+
     final cleanWords = words
         .map((word) => word.trim())
         .where((word) => word.isNotEmpty)
@@ -710,6 +793,31 @@ class _StoryCard extends StatelessWidget {
       spans.add(
         TextSpan(
           text: story.substring(match.start, match.end),
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      );
+      cursor = match.end;
+    }
+
+    if (cursor < story.length) {
+      spans.add(TextSpan(text: story.substring(cursor)));
+    }
+
+    return spans;
+  }
+
+  List<TextSpan> _markdownBoldSpans(String story) {
+    final spans = <TextSpan>[];
+    final regex = RegExp(r'\*\*(.+?)\*\*');
+    var cursor = 0;
+
+    for (final match in regex.allMatches(story)) {
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: story.substring(cursor, match.start)));
+      }
+      spans.add(
+        TextSpan(
+          text: match.group(1),
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
       );

@@ -4,6 +4,34 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wordcreate/main.dart';
 
 void main() {
+  test('Parses AI word_data response format', () {
+    final result = GeneratedStory.fromJsonText(
+      '''
+{
+  "story": "The **brave** child stayed **strong**.",
+  "summary": "A child shows courage.",
+  "word_data": {
+    "brave": {
+      "meaning": "Ready to face danger",
+      "hindi": "bahadur",
+      "synonyms": "courageous, bold",
+      "antonyms": "fearful, timid",
+      "forms": "brave, braver, bravest",
+      "explanation": "Use brave for someone who faces fear."
+    }
+  }
+}
+''',
+      fallbackWords: ['brave'],
+    );
+
+    expect(result.story, contains('**brave**'));
+    expect(result.wordDetails.first.word, 'brave');
+    expect(result.wordDetails.first.hindiMeaning, 'bahadur');
+    expect(result.wordDetails.first.synonyms, ['courageous', 'bold']);
+    expect(result.wordDetails.first.wordForms, ['brave', 'braver', 'bravest']);
+  });
+
   testWidgets('Story generator screen renders core controls', (
     WidgetTester tester,
   ) async {
