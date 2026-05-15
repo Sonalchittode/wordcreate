@@ -33,4 +33,39 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('Story result screen renders details and practice fields', (
+    WidgetTester tester,
+  ) async {
+    const result = GeneratedStory(
+      wordDetails: [
+        WordDetail(
+          word: 'brave',
+          hindiMeaning: 'bahadur',
+          synonyms: ['courageous', 'fearless'],
+          antonyms: ['fearful'],
+          wordForms: ['brave', 'braver', 'bravest'],
+          explanation: 'Showing no fear in difficult situations.',
+        ),
+      ],
+      story: 'A brave child helped everyone.',
+      summary: 'A child learns courage.',
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(home: StoryResultPage(result: result)),
+    );
+
+    expect(find.text('Your Story'), findsOneWidget);
+    expect(find.text('Word Details'), findsOneWidget);
+    expect(find.text('Story'), findsOneWidget);
+    expect(find.text('Summary'), findsOneWidget);
+    expect(find.text('Practice Your Sentences'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Check Sentences'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Check Sentences'), findsOneWidget);
+  });
 }

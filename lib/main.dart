@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
 Future<void> main() async {
@@ -45,7 +48,6 @@ class _StoryGeneratorPageState extends State<StoryGeneratorPage> {
   String _size = 'Auto';
   String _difficulty = 'Beginner';
   String? _error;
-  String? _story;
   bool _isGenerating = false;
 
   final List<String> _themes = const [
@@ -104,7 +106,6 @@ class _StoryGeneratorPageState extends State<StoryGeneratorPage> {
     setState(() {
       _isGenerating = true;
       _error = null;
-      _story = null;
     });
 
     try {
@@ -123,7 +124,16 @@ class _StoryGeneratorPageState extends State<StoryGeneratorPage> {
         throw StoryGenerationException('The AI did not return a story.');
       }
 
-      setState(() => _story = text);
+      final result = GeneratedStory.fromJsonText(text, fallbackWords: words);
+      if (!mounted) {
+        return;
+      }
+
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StoryResultPage(result: result),
+        ),
+      );
     } catch (_) {
       setState(() => _error = 'Could not generate story. Please try again.');
     } finally {
@@ -145,18 +155,29 @@ class _StoryGeneratorPageState extends State<StoryGeneratorPage> {
         : _theme;
 
     return '''
-Write a simple English vocabulary learning story.
+Create an English vocabulary learning story for a mobile app.
 
 Required vocabulary words: ${words.join(', ')}
 Story genre: $genreGuide
 Difficulty: $_difficulty English
 Length: $sizeGuide
 
-Rules:
-- Use every vocabulary word naturally in the story.
-- Keep the language useful for English learners.
-- Do not add explanations, markdown, headings, or bullet points.
-- Return only the story text.
+Return valid JSON only. Do not use markdown fences.
+Use this exact schema:
+{
+  "wordDetails": [
+    {
+      "word": "word",
+      "hindiMeaning": "Hindi translation",
+      "synonyms": ["one", "two", "three"],
+      "antonyms": ["one", "two", "three"],
+      "wordForms": ["form1", "form2"],
+      "explanation": "short learner-friendly explanation"
+    }
+  ],
+  "story": "story text that naturally uses every required word",
+  "summary": "one short sentence summary"
+}
 ''';
   }
 
@@ -336,33 +357,6 @@ Rules:
                       ),
               ),
             ),
-            if (_story != null) ...[
-              const SizedBox(height: 24),
-              const Text(
-                'Generated Story',
-                style: TextStyle(
-                  color: Color(0xFF111820),
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF2F6F9),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  _story!,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    height: 1.45,
-                    color: Color(0xFF18212B),
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -381,6 +375,409 @@ Rules:
             label: 'Store',
           ),
         ],
+      ),
+    );
+  }
+}
+
+class StoryResultPage extends StatefulWidget {
+  const StoryResultPage({super.key, required this.result});
+
+  final GeneratedStory result;
+
+  @override
+  State<StoryResultPage> createState() => _StoryResultPageState();
+}
+
+class _StoryResultPageState extends State<StoryResultPage> {
+  final _tts = FlutterTts();
+  final _sentenceOneController = TextEditingController();
+  final _sentenceTwoController = TextEditingController();
+
+  @override
+  void dispose() {
+    _tts.stop();
+    _sentenceOneController.dispose();
+    _sentenceTwoController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _speak(String text) async {
+    await _tts.setLanguage('en-US');
+    await _tts.setSpeechRate(0.45);
+    await _tts.speak(text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFD7D7D7),
+        foregroundColor: Colors.black,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Back',
+        ),
+        title: const Text(
+          'Your Story',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+        ),
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+          children: [
+            const _SectionTitle('Word Details'),
+            const SizedBox(height: 10),
+            for (final detail in widget.result.wordDetails) ...[
+              _WordDetailCard(
+                detail: detail,
+                onSpeak: () => _speak(detail.word),
+              ),
+              const SizedBox(height: 12),
+            ],
+            const SizedBox(height: 12),
+            const _SectionTitle('Story'),
+            const SizedBox(height: 10),
+            _StoryCard(
+              story: widget.result.story,
+              words: widget.result.wordDetails.map((detail) => detail.word),
+            ),
+            const SizedBox(height: 20),
+            const _SectionTitle('Summary'),
+            const SizedBox(height: 10),
+            _SummaryCard(summary: widget.result.summary),
+            const SizedBox(height: 22),
+            const _SectionTitle('Practice Your Sentences'),
+            const SizedBox(height: 10),
+            _PracticeField(
+              controller: _sentenceOneController,
+              hintText: 'Sentence 1',
+            ),
+            const SizedBox(height: 10),
+            _PracticeField(
+              controller: _sentenceTwoController,
+              hintText: 'Sentence 2',
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 46,
+              child: ElevatedButton(
+                onPressed: () {},
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF242424),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                child: const Text(
+                  'Check Sentences',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class GeneratedStory {
+  const GeneratedStory({
+    required this.wordDetails,
+    required this.story,
+    required this.summary,
+  });
+
+  final List<WordDetail> wordDetails;
+  final String story;
+  final String summary;
+
+  factory GeneratedStory.fromJsonText(
+    String text, {
+    required List<String> fallbackWords,
+  }) {
+    final cleanText = text
+        .replaceAll(RegExp(r'^```json\s*', multiLine: true), '')
+        .replaceAll(RegExp(r'^```\s*', multiLine: true), '')
+        .replaceAll(RegExp(r'\s*```$'), '')
+        .trim();
+    final decoded = jsonDecode(cleanText) as Map<String, dynamic>;
+    final details = (decoded['wordDetails'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(WordDetail.fromJson)
+        .toList();
+
+    return GeneratedStory(
+      wordDetails: details.isEmpty
+          ? fallbackWords.map(WordDetail.basic).toList()
+          : details,
+      story: decoded['story'] as String? ?? '',
+      summary: decoded['summary'] as String? ?? '',
+    );
+  }
+}
+
+class WordDetail {
+  const WordDetail({
+    required this.word,
+    required this.hindiMeaning,
+    required this.synonyms,
+    required this.antonyms,
+    required this.wordForms,
+    required this.explanation,
+  });
+
+  final String word;
+  final String hindiMeaning;
+  final List<String> synonyms;
+  final List<String> antonyms;
+  final List<String> wordForms;
+  final String explanation;
+
+  factory WordDetail.fromJson(Map<String, dynamic> json) {
+    return WordDetail(
+      word: json['word'] as String? ?? '',
+      hindiMeaning: json['hindiMeaning'] as String? ?? '',
+      synonyms: _stringList(json['synonyms']),
+      antonyms: _stringList(json['antonyms']),
+      wordForms: _stringList(json['wordForms']),
+      explanation: json['explanation'] as String? ?? '',
+    );
+  }
+
+  factory WordDetail.basic(String word) {
+    return WordDetail(
+      word: word,
+      hindiMeaning: '',
+      synonyms: const [],
+      antonyms: const [],
+      wordForms: [word],
+      explanation: '',
+    );
+  }
+
+  static List<String> _stringList(Object? value) {
+    return (value as List<dynamic>? ?? [])
+        .map((item) => item.toString())
+        .where((item) => item.trim().isNotEmpty)
+        .toList();
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Color(0xFF202020),
+        fontSize: 17,
+        fontWeight: FontWeight.w800,
+      ),
+    );
+  }
+}
+
+class _WordDetailCard extends StatelessWidget {
+  const _WordDetailCard({required this.detail, required this.onSpeak});
+
+  final WordDetail detail;
+  final VoidCallback onSpeak;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE4F4FF),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  detail.word,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF27323A),
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: onSpeak,
+                icon: const Icon(Icons.volume_up, color: Color(0xFF4F5961)),
+                tooltip: 'Listen',
+              ),
+            ],
+          ),
+          _DetailLine(label: 'Hindi Meaning', value: detail.hindiMeaning),
+          _DetailLine(label: 'Synonyms', value: detail.synonyms.join(', ')),
+          _DetailLine(label: 'Antonyms', value: detail.antonyms.join(', ')),
+          _DetailLine(label: 'Word Forms', value: detail.wordForms.join(', ')),
+          _DetailLine(label: 'Explanation', value: detail.explanation),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailLine extends StatelessWidget {
+  const _DetailLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    if (value.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Text(
+        '$label: $value',
+        style: const TextStyle(
+          fontSize: 13,
+          height: 1.25,
+          color: Color(0xFF39434B),
+        ),
+      ),
+    );
+  }
+}
+
+class _StoryCard extends StatelessWidget {
+  const _StoryCard({required this.story, required this.words});
+
+  final String story;
+  final Iterable<String> words;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEDEDED),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(
+            color: Colors.black,
+            fontSize: 16,
+            height: 1.45,
+          ),
+          children: _storySpans(story, words),
+        ),
+      ),
+    );
+  }
+
+  List<TextSpan> _storySpans(String story, Iterable<String> words) {
+    final cleanWords = words
+        .map((word) => word.trim())
+        .where((word) => word.isNotEmpty)
+        .toList();
+    if (cleanWords.isEmpty || story.isEmpty) {
+      return [TextSpan(text: story)];
+    }
+
+    final pattern = cleanWords.map(RegExp.escape).join('|');
+    final regex = RegExp(r'\b(' + pattern + r')\w*\b', caseSensitive: false);
+    final spans = <TextSpan>[];
+    var cursor = 0;
+
+    for (final match in regex.allMatches(story)) {
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: story.substring(cursor, match.start)));
+      }
+      spans.add(
+        TextSpan(
+          text: story.substring(match.start, match.end),
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      );
+      cursor = match.end;
+    }
+
+    if (cursor < story.length) {
+      spans.add(TextSpan(text: story.substring(cursor)));
+    }
+
+    return spans;
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({required this.summary});
+
+  final String summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE7F8E9),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Text(
+        summary,
+        style: const TextStyle(
+          color: Color(0xFF3E5544),
+          fontSize: 14,
+          height: 1.35,
+        ),
+      ),
+    );
+  }
+}
+
+class _PracticeField extends StatelessWidget {
+  const _PracticeField({required this.controller, required this.hintText});
+
+  final TextEditingController controller;
+  final String hintText;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      minLines: 1,
+      maxLines: 2,
+      decoration: InputDecoration(
+        hintText: hintText,
+        filled: true,
+        fillColor: const Color(0xFFD1D1D1),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 13,
+          vertical: 15,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: const BorderSide(color: Colors.black, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: const BorderSide(color: Colors.black, width: 1.3),
+        ),
       ),
     );
   }
